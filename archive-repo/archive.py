@@ -324,16 +324,21 @@ query($id: ID!, $cursor: String!){
     node(id: $id) {
         ...on PullRequest {
             comments(first:100, after:$cursor) {
-                nodes { ...commentFields }
+                nodes {
+                    ...author
+                    ...commentFields
+                }
         """
     + gql_Paged
     + """
             }
         }
     }
+    ...rateLimit
 }
 """
     + gql_Comment_Fields
+    + gql_AuthorFields
     + gql_RateLimit
 )
 
