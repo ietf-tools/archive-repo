@@ -21,7 +21,11 @@ def init(cmdline):
         prog="archive", description="Archive repo issues and PRs."
     )
     parser.add_argument("repo", help="GitHub repo to archive (e.g. quicwg/base-drafts)")
-    parser.add_argument("githubToken", help="GitHub OAuth token")
+    parser.add_argument(
+        "githubToken",
+        nargs="?",
+        help="GitHub OAuth token; may be omitted if GITHUB_TOKEN is set",
+    )
     parser.add_argument(
         "outFile", default=None, nargs="?", help="destination for output"
     )
@@ -47,8 +51,14 @@ def init(cmdline):
     )
     args = parser.parse_args(cmdline)
 
-    if not args.githubToken and "GITHUB_API_TOKEN" in os.environ.keys():
-        args.githubToken = os.environ["GITHUB_API_TOKEN"]
+    envToken = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_API_TOKEN")
+    if envToken and args.outFile is None:
+        # With the token in the environment, a lone argument after the repo is
+        # the output file
+        args.outFile, args.githubToken = args.githubToken, None
+    args.githubToken = args.githubToken or envToken
+    if not args.githubToken:
+        parser.error("a GitHub token is required, as an argument or in GITHUB_TOKEN")
 
     if args.repo[-1] == "/":
         args.repo = args.repo[:-1]

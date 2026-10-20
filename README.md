@@ -3,14 +3,16 @@ Captures and stores data about a GitHub repo for archival purposes
 
 # Archive command
 
-usage: python3 -m archive-repo archive [-h] [--reference [REFFILE]] [--issues-only] [--quiet] repo githubToken [outFile]
+usage: python3 -m archive-repo archive [-h] [--reference [REFFILE]] [--issues-only] [--quiet] repo [githubToken] [outFile]
 
 Archive repo issues and PRs.
 
 positional arguments:
 - `repo`:  The GitHub repository to fetch, e.g. "quicwg/base-drafts"
 - `githubToken`:  A token for a GitHub account with permission to read the
-  selected repository; see https://github.com/settings/tokens
+  selected repository; see https://github.com/settings/tokens.  May be omitted
+  if the token is in the `GITHUB_TOKEN` or `GITHUB_API_TOKEN` environment
+  variable, in which case a single argument after `repo` is the output file.
 - `outfile`:  Where the output should be written; if omitted, stdout is used.
 
 optional arguments:
