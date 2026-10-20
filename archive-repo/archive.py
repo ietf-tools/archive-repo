@@ -456,14 +456,22 @@ def submit_query(query, variables, display):
     log(output)
     result = dict()
 
-    for _attempt in range(3):
+    for attempt in range(5):
+        if attempt:
+            delay = 5 * 2**attempt
+            log(f"Retrying in {delay} seconds")
+            time.sleep(delay)
+
         try:
-            response = s.post(url, body)
-            response.raise_for_status()
-            result = response.json()
-        except:
-            time.sleep(5)
-            pass
+            response = s.post(url, body, timeout=120)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            log(f"Request failed: {e}")
+            continue
+        if response.status_code >= 500:
+            log(f"Server error: {response.status_code} {response.reason}")
+            continue
+        response.raise_for_status()
+        result = response.json()
 
         if (
             "errors" in result
