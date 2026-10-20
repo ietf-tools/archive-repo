@@ -768,9 +768,14 @@ def do_archive(full_repo, token, refFile, outFile=None, issuesOnly=False):
 
     ## Ready to output
 
+    ## Write to a temporary file and rename it into place, so the output is
+    ## never left half-written and can be the same file as the reference
+    tempFile = outFile + ".tmp" if outFile else None
+
     ## Pick up everything in the reference if nothing new was downloaded
     if reference.canCopy and outFile:
-        shutil.copyfile(refFile, outFile)
+        shutil.copyfile(refFile, tempFile)
+        os.replace(tempFile, outFile)
     else:
         output = {
             "magic": archive_reference.get_current_magic(),
@@ -783,8 +788,9 @@ def do_archive(full_repo, token, refFile, outFile=None, issuesOnly=False):
             output["pulls"] = [pr for (id, pr) in sorted(reference.prs.items())]
 
         if outFile:
-            with open(outFile, "w") as output_file:
+            with open(tempFile, "w") as output_file:
                 json.dump(output, output_file, indent=2)
+            os.replace(tempFile, outFile)
         else:
             json.dump(output, sys.stdout, indent=2)
 
