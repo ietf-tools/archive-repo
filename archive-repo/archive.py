@@ -5,7 +5,7 @@ import sys
 import json
 import requests
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import time
 import re
 import dateutil.parser as dp
@@ -431,13 +431,28 @@ query($owner: String!, $repo: String!, $cursor: String!) {
 
 
 last_request_limit = 5000
-next_reset_time = datetime.now()
+next_reset_time = datetime.now(timezone.utc)
 
 
-def stall_until(time):
-    time_to_sleep = time - datetime.now().timestamp() + 1
-    print("GitHub API rate-limited; waiting for" + str(time_to_sleep) + "seconds")
-    time.sleep(time_to_sleep)
+def stall_until(reset):
+    seconds = max((reset - datetime.now(timezone.utc)).total_seconds(), 0) + 1
+    eprint(f"GitHub API rate-limited; waiting for {seconds:.0f} seconds")
+    time.sleep(seconds)
+
+
+def rate_limit_reset(response):
+    "If a 403 or 429 response is a rate limit, return when to try again"
+    now = datetime.now(timezone.utc)
+    if "retry-after" in response.headers:
+        return now + timedelta(seconds=int(response.headers["retry-after"]))
+    if response.headers.get("x-ratelimit-remaining") == "0":
+        return datetime.fromtimestamp(
+            int(response.headers["x-ratelimit-reset"]), timezone.utc
+        )
+    if "rate limit" in response.text.lower():
+        # Secondary rate limits without a retry-after: wait at least a minute
+        return now + timedelta(minutes=1)
+    return None
 
 
 def submit_query(query, variables, display):
@@ -470,16 +485,19 @@ def submit_query(query, variables, display):
         if response.status_code >= 500:
             log(f"Server error: {response.status_code} {response.reason}")
             continue
+        if response.status_code in (403, 429):
+            reset = rate_limit_reset(response)
+            if reset:
+                stall_until(reset)
+                continue
         response.raise_for_status()
         result = response.json()
 
-        if (
-            "errors" in result
-            and "type" in result["errors"]
-            and result["errors"]["type"] == "RATE_LIMITED"
+        if any(
+            error.get("type") == "RATE_LIMITED" for error in result.get("errors", [])
         ):
             # We're rate-limited; STALL
-            if next_reset_time > datetime.now():
+            if next_reset_time > datetime.now(timezone.utc):
                 stall_until(next_reset_time)
             else:
                 # We haven't made a successful request, so we don't know how long to sleep.
