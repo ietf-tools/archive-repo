@@ -738,14 +738,14 @@ def getPRs(owner, repo, refFile, fields=gql_PullRequest_Fields, updateOld=False)
                 get_more_issues = False
 
 
-def upgradeReference(reference):
+def upgradeReference(owner, repo, reference):
     try:
         while archive_reference.is_legacy_magic(reference.magic):
             instructions = archive_reference.get_upgrade_instructions(reference.magic)
             if instructions.issues:
-                getIssues(reference, instructions.issues, True)
+                getIssues(owner, repo, reference, instructions.issues, updateOld=True)
             if instructions.prs:
-                getPRs(reference, instructions.prs, True)
+                getPRs(owner, repo, reference, instructions.prs, updateOld=True)
             reference.magic = instructions.result
     except:
         pass
@@ -780,8 +780,9 @@ def do_archive(full_repo, token, refFile, outFile=None, issuesOnly=False):
     (owner, repo) = full_repo.split("/", 1)
 
     ## Read in the reference files, if any
-    reference = upgradeReference(archive_reference.loadReference(refFile, full_repo))
+    reference = archive_reference.loadReference(refFile, full_repo)
     reference.canCopy = bool(reference.issues) and bool(reference.prs or issuesOnly)
+    reference = upgradeReference(owner, repo, reference)
 
     ## Download from GitHub the full issues list (if no reference) or the updated issues list (if reference)
     getIssues(owner, repo, reference)
