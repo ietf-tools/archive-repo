@@ -456,7 +456,7 @@ def stall_until(reset):
 
 
 def rate_limit_reset(response):
-    "If a 403 or 429 response is a rate limit, return when to try again"
+    "If a response is a rate limit, return when to try again"
     now = datetime.now(timezone.utc)
     if "retry-after" in response.headers:
         return now + timedelta(seconds=int(response.headers["retry-after"]))
@@ -509,10 +509,14 @@ def submit_query(query, variables, display):
         result = response.json()
 
         if any(
-            error.get("type") == "RATE_LIMITED" for error in result.get("errors", [])
+            error.get("type") in ("RATE_LIMITED", "RATE_LIMIT")
+            for error in result.get("errors", [])
         ):
             # We're rate-limited; STALL
-            if next_reset_time > datetime.now(timezone.utc):
+            reset = rate_limit_reset(response)
+            if reset:
+                stall_until(reset)
+            elif next_reset_time > datetime.now(timezone.utc):
                 stall_until(next_reset_time)
             else:
                 # We haven't made a successful request, so we don't know how long to sleep.
